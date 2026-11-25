@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Pruebas del ecualizador: estabilidad y coherencia entre frecuencias de muestreo (44.1 / 48 / 96 / 192 kHz).
   tests:
@@ -84,7 +88,7 @@ jobs:
           v=$(find build -type d -name "*.vst3" | head -1)
           (cd "$(dirname "$v")" && zip -r -y "$GITHUB_WORKSPACE/TITQ-macOS-VST3-${{ matrix.id }}.zip" "$(basename "$v")")
           a=$(find build -type d -name "*.component" | head -1)
-          (cd "$(dirname "$a")" && zip -r -y "$GITHUB_WORKSPACE/TITQ-macOS-AU-Logic-${{ matrix.id }}.zip" "$(basename "$a")")
+          (cd "$(dirname "$a")" && zip -r -y "$GITHUB_WORKSPACE/TITQ-macOS-AU-${{ matrix.id }}.zip" "$(basename "$a")")
 
       - uses: actions/upload-artifact@v4
         with:
@@ -107,7 +111,7 @@ jobs:
         shell: bash
         run: |
           cd TITQ
-          for k in VST3 AU-Logic; do
+          for k in VST3 AU; do
             files=(TITQ-macOS-$k-*.zip)
             if [ -e "${files[0]}" ]; then
               mv "${files[0]}" "TITQ-macOS-$k.zip"
