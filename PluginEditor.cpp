@@ -415,6 +415,8 @@ TitQEditor::TitQEditor (TitQProcessor& p) : AudioProcessorEditor (&p), proc (p)
     typeBox.addItemList (typeNames(), 1);
     scSrcBox.addItemList (juce::StringArray { "SC: Internal", "SC: External" }, 1);
     dirBox.addItemList (juce::StringArray { "Above threshold", "Below threshold" }, 1);
+    chBox.addItemList (juce::StringArray { "Stereo (L+R)", "Mid", "Side", "Left only", "Right only" }, 1);
+    addAndMakeVisible (chBox);
     addAndMakeVisible (typeBox); addAndMakeVisible (onBtn); addAndMakeVisible (soloBtn); addAndMakeVisible (dynBtn);
     addAndMakeVisible (scSrcBox); addAndMakeVisible (dirBox); addAndMakeVisible (freeBtn);
     deleteBtn.onClick = [this] { deleteBand (selected); };
@@ -578,7 +580,7 @@ void TitQEditor::selectBand (int b)
     selected = b;
     bandButtons[(size_t) b].setToggleState (true, juce::dontSendNotification);
 
-    typeAtt.reset(); onAtt.reset(); soloAtt.reset(); dynAtt.reset(); scSrcAtt.reset(); dirAtt.reset(); freeAtt.reset();
+    typeAtt.reset(); onAtt.reset(); soloAtt.reset(); dynAtt.reset(); scSrcAtt.reset(); dirAtt.reset(); freeAtt.reset(); chAtt.reset();
     typeAtt  = std::make_unique<ComboAtt>  (proc.apvts, pid (b, "type"),   typeBox);
     onAtt    = std::make_unique<ButtonAtt> (proc.apvts, pid (b, "on"),     onBtn);
     soloAtt  = std::make_unique<ButtonAtt> (proc.apvts, pid (b, "solo"),   soloBtn);
@@ -586,6 +588,7 @@ void TitQEditor::selectBand (int b)
     scSrcAtt = std::make_unique<ComboAtt>  (proc.apvts, pid (b, "scsrc"),  scSrcBox);
     dirAtt   = std::make_unique<ComboAtt>  (proc.apvts, pid (b, "dyndir"), dirBox);
     freeAtt  = std::make_unique<ButtonAtt> (proc.apvts, pid (b, "scfree"), freeBtn);
+    chAtt    = std::make_unique<ComboAtt>  (proc.apvts, pid (b, "chmode"), chBox);
 
     for (int i = 0; i < kNumKnobs; ++i)
     {
@@ -630,6 +633,7 @@ void TitQEditor::updateEnabledStates()
         en (knobs[(size_t) i].s, used && dynOn && ! isCut);
     en (scSrcBox, used && dynOn && ! isCut);
     en (dirBox,   used && dynOn && ! isCut);
+    en (chBox,    used);
     en (freeBtn,  used && dynOn && ! isCut);
     en (knobs[kScFreq].s, used && dynOn && ! isCut && freeOn);
     en (knobs[kScQ].s,    used && dynOn && ! isCut && freeOn);
@@ -1270,6 +1274,7 @@ void TitQEditor::resized()
         bandButtons[(size_t) i].setBounds (S (44 + i * 46), S (304), S (42), S (26));
     typeBox.setBounds (S (520), S (304), S (120), S (26));
     onBtn.setBounds   (S (652), S (304), S (56),  S (26));
+    chBox.setBounds   (S (716), S (304), S (150), S (26));
     soloBtn.setBounds (S (712), S (304), S (62),  S (26));
     dynBtn.setBounds  (S (780), S (304), S (90),  S (26));
     deleteBtn.setBounds (S (880), S (304), S (80), S (26));

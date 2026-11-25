@@ -54,7 +54,7 @@ private:
     {
         std::atomic<float> *used, *on, *type, *freq, *gain, *q, *slope, *boost, *atten, *solo,
                            *dyn, *dyndir, *range, *thr, *ratio, *attack, *release, *knee,
-                           *scsrc, *scfree, *scfreq, *scq;
+                           *scsrc, *scfree, *scfreq, *scq, *chmode;
     };
 
     struct BandRuntime
@@ -69,6 +69,7 @@ private:
         float fade = 0.f, fadeStart = 0.f, fadeEnd = 0.f;   // fundido de encendido/apagado de la banda (sin clics)
         double sFreq = -1.0, sSlope = 0.0;                  // frecuencia y pendiente suavizadas (filtros de corte)
         int sType = -1;
+        int chmode = 0;                                     // 0 Stereo, 1 Mid, 2 Side, 3 Left, 4 Right
     };
 
     void setOversampling (int index);

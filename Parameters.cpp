@@ -79,6 +79,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         layout.add (makeFloat (pid (b, "release"), n + "Release",    5.f,  3000.f, 150.f, 150.f, "ms", 2, 0.f));
         layout.add (makeFloat (pid (b, "knee"),    n + "Knee",       0.f,  30.f,   6.f,  0.f,   "dB", 3, 0.1f));
 
+        // a que parte de la senal estereo actua la banda
+        layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { pid (b, "chmode"), 1 }, n + "Stereo Mode",
+                    juce::StringArray { "Stereo", "Mid", "Side", "Left", "Right" }, 0));
+
         // sidechain por banda (una sola entrada externa por instancia, compartida por las bandas que la usen)
         layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { pid (b, "scsrc"), 1 }, n + "Sidechain Source",
                     juce::StringArray { "Internal", "External" }, 0));

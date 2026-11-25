@@ -121,11 +121,11 @@ private:
     // banda seleccionada
     int selected = 0;
     std::array<juce::TextButton, titq::kNumBands> bandButtons;
-    juce::ComboBox typeBox, scSrcBox, dirBox;
+    juce::ComboBox typeBox, scSrcBox, dirBox, chBox;
     juce::ToggleButton onBtn { "On" }, soloBtn { "Solo" }, dynBtn { "Dynamic" }, freeBtn { "Free SC detect" };
     juce::TextButton deleteBtn { "Delete" };
     juce::Label scWarn;
-    std::unique_ptr<ComboAtt> typeAtt, scSrcAtt, dirAtt;
+    std::unique_ptr<ComboAtt> typeAtt, scSrcAtt, dirAtt, chAtt;
     std::unique_ptr<ButtonAtt> onAtt, soloAtt, dynAtt, freeAtt;
 
     // freq gain q slope boost atten | range thr ratio attack release knee scfreq scq

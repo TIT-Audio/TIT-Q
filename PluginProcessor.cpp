@@ -19,7 +19,7 @@ TitQProcessor::TitQProcessor()
         p.solo = get ("solo");   p.dyn = get ("dyn");     p.dyndir = get ("dyndir"); p.range = get ("range");
         p.thr = get ("thr");     p.ratio = get ("ratio");
         p.attack = get ("attack"); p.release = get ("release"); p.knee = get ("knee");
-        p.scsrc = get ("scsrc"); p.scfree = get ("scfree"); p.scfreq = get ("scfreq"); p.scq = get ("scq");
+        p.scsrc = get ("scsrc"); p.scfree = get ("scfree"); p.scfreq = get ("scfreq"); p.scq = get ("scq"); p.chmode = get ("chmode");
     }
     for (auto& a : dynAmount) a.store (0.f);
     osParam  = apvts.getRawParameterValue ("os");
@@ -99,8 +99,8 @@ void TitQProcessor::updateBands (const float* intL, const float* intR, const flo
     const double chunkSec = (double) n / fs;
 
     // señales de detección en mono: interna (la entrada) y externa (la única entrada de sidechain, si está conectada)
-    float monoInt[kChunk], monoExt[kChunk];
-    for (int i = 0; i < n; ++i) monoInt[i] = 0.5f * (intL[i] + intR[i]);
+    float monoInt[kChunk], sideInt[kChunk], monoExt[kChunk];
+    for (int i = 0; i < n; ++i) { monoInt[i] = 0.5f * (intL[i] + intR[i]); sideInt[i] = 0.5f * (intL[i] - intR[i]); }
     const bool haveExt = (extL != nullptr && extR != nullptr);
     if (haveExt)
         for (int i = 0; i < n; ++i) monoExt[i] = 0.5f * (extL[i] + extR[i]);
@@ -110,6 +110,7 @@ void TitQProcessor::updateBands (const float* intL, const float* intR, const flo
         auto& rt = bands[(size_t) b];
         auto& p = ptrs[(size_t) b];
         const BandSettings s = readBandSettings (b);
+        rt.chmode = juce::jlimit (0, 4, (int) std::lround (p.chmode->load()));
 
         // fundido de ~8 ms al crear / encender / apagar / borrar una banda (evita clics)
         rt.fadeStart = rt.fade;
@@ -142,7 +143,9 @@ void TitQProcessor::updateBands (const float* intL, const float* intR, const flo
 
             // fuente: Internal o External (si no hay entrada externa conectada, usa la interna)
             const bool useExt = haveExt && p.scsrc->load() > 0.5f;
-            const float* src = useExt ? monoExt : monoInt;
+            // la banda escucha la parte de la senal en la que actua (Mid, Side, L o R); el sidechain externo es siempre mono
+            const float* internalSrc = rt.chmode == 2 ? sideInt : (rt.chmode == 3 ? intL : (rt.chmode == 4 ? intR : monoInt));
+            const float* src = useExt ? monoExt : internalSrc;
             float tmp[kChunk];
             std::copy (src, src + n, tmp);
             rt.detector.process (tmp, n, 0);
@@ -238,18 +241,37 @@ void TitQProcessor::processBands (juce::dsp::AudioBlock<float>& block)
         }
 
         const bool steady = (b.fadeStart >= 1.f && b.fadeEnd >= 1.f);
-        for (int ch = 0; ch < numCh; ++ch)
-        {
-            float* data = block.getChannelPointer ((size_t) ch);
-            if (steady) { b.eq.process (data, n, ch); continue; }
 
-            std::copy (data, data + n, dry);     // fundido entre señal seca y procesada
-            b.eq.process (data, n, ch);
+        // aplica el filtro de la banda a un trozo de senal (con fundido si la banda se esta encendiendo o apagando)
+        auto run = [&] (float* data, int stateCh)
+        {
+            if (steady) { b.eq.process (data, n, stateCh); return; }
+            std::copy (data, data + n, dry);
+            b.eq.process (data, n, stateCh);
             for (int i = 0; i < n; ++i)
             {
                 const float w = b.fadeStart + (b.fadeEnd - b.fadeStart) * (float) (i + 1) / (float) n;
                 data[i] = dry[i] + w * (data[i] - dry[i]);
             }
+        };
+
+        const int mode = numCh == 2 ? b.chmode : 0;
+        if (mode == 0)                                   // Stereo: L y R
+        {
+            for (int ch = 0; ch < numCh; ++ch) run (block.getChannelPointer ((size_t) ch), ch);
+        }
+        else if (mode == 3 || mode == 4)                 // solo Left o solo Right
+        {
+            run (block.getChannelPointer ((size_t) (mode - 3)), mode - 3);
+        }
+        else                                             // Mid o Side: se codifica, se filtra una sola parte y se decodifica
+        {
+            float* l = block.getChannelPointer (0);
+            float* r = block.getChannelPointer (1);
+            float m[kChunk * 8], sd[kChunk * 8];
+            for (int i = 0; i < n; ++i) { m[i] = 0.5f * (l[i] + r[i]); sd[i] = 0.5f * (l[i] - r[i]); }
+            if (mode == 1) run (m, 0); else run (sd, 1);
+            for (int i = 0; i < n; ++i) { l[i] = m[i] + sd[i]; r[i] = m[i] - sd[i]; }
         }
     }
 }
@@ -351,6 +373,7 @@ juce::AudioProcessorEditor* TitQProcessor::createEditor() { return new TitQEdito
 void TitQProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
     auto state = apvts.copyState();
+    state.setProperty ("titVersion", 2, nullptr);     // version del formato del estado (para que los presets antiguos sigan abriendo)
     if (auto xml = state.createXml()) copyXmlToBinary (*xml, dest);
 }
 
