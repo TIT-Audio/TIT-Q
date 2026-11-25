@@ -43,11 +43,11 @@ public:
             l.setJustificationType (juce::Justification::centredLeft);
             addAndMakeVisible (l);
         };
-        label (lblType,   "New band: curve type");
-        label (lblSlope,  "New band: slope (dB/oct)");
-        label (lblBand,   "Double-click on a band");
-        label (lblWheel,  "Mouse wheel on a band: Q speed");
-        label (lblZones,  "Zones: frequency range + height (dB) of the click -> band created");
+        label (lblType,   "Type of a new band");
+        label (lblSlope,  "Slope of a new band (dB/oct)");
+        label (lblBand,   "Double-click on a band does");
+        label (lblWheel,  "Mouse wheel speed (Q)");
+        label (lblZones,  "Click zones: click here (Hz and dB) = get this band");
 
         addAndMakeVisible (presetBox);
         addAndMakeVisible (defaultBtn); addAndMakeVisible (saveBtn); addAndMakeVisible (deleteBtn); addAndMakeVisible (folderBtn);
@@ -69,9 +69,9 @@ public:
         wheelSpeed.setRange (0.2, 4.0, 0.1);
         wheelSpeed.setTextBoxStyle (juce::Slider::TextBoxRight, false, 50, 20);
         addAndMakeVisible (wheelSpeed);
-        wheelOn.setButtonText ("Mouse wheel changes the Q of the band under the cursor");
+        wheelOn.setButtonText ("Mouse wheel over a band changes its Q");
         addAndMakeVisible (wheelOn);
-        gainClick.setButtonText ("New band takes the gain of the click height");
+        gainClick.setButtonText ("New band gets the gain where I click");
         addAndMakeVisible (gainClick);
 
         // ---- zonas ----
@@ -170,7 +170,7 @@ public:
         defaultBtn.setButtonText ("Set as Default");
         saveBtn.setButtonText ("Save");
         deleteBtn.setButtonText ("Delete");
-        folderBtn.setButtonText ("Open presets folder");
+        folderBtn.setButtonText ("Open settings folder");
 
         nameEd.setText (proc.clickPresetName, juce::dontSendNotification);
         refreshPresetList();
@@ -396,6 +396,8 @@ TitQEditor::TitQEditor (TitQProcessor& p) : AudioProcessorEditor (&p), proc (p)
     eqPresetBox.onChange = [this] { if (eqPresetBox.getSelectedId() > 0) loadEqPreset (eqPresetBox.getText()); };
     eqSaveBtn.onClick = [this] { askSaveEqPreset(); };
     eqDelBtn.onClick  = [this] { askDeleteEqPreset(); };
+    addAndMakeVisible (eqMenuBtn);
+    eqMenuBtn.onClick = [this] { showPresetMenu(); };
     refreshEqPresets();
 
     // ---- selector de banda ----
@@ -455,10 +457,33 @@ juce::File TitQEditor::eqPresetDir()
     return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("TIT Q").getChildFile ("EQ Presets");
 }
 
+// Un preset es un archivo de texto (.titq) con TODO: las 10 bandas, el nivel de salida y los ajustes de Settings.
+// No guarda rutas del PC: se puede copiar a otro ordenador y cargar igual.
+std::unique_ptr<juce::XmlElement> TitQEditor::makePresetXml() const
+{
+    auto xml = proc.apvts.copyState().createXml();
+    if (xml == nullptr) return nullptr;
+    xml->createNewChildElement ("ClickSettings")->addTextElement (juce::JSON::toString (proc.clickConfig.toVar()));
+    return xml;
+}
+
+bool TitQEditor::applyPresetXml (juce::XmlElement xml)
+{
+    if (! xml.hasTagName (proc.apvts.state.getType())) return false;
+    if (auto* e = xml.getChildByName ("ClickSettings"))
+    {
+        proc.clickConfig = ClickConfig::fromVar (juce::JSON::parse (e->getAllSubText()));
+        xml.removeChildElement (e, true);
+    }
+    proc.apvts.replaceState (juce::ValueTree::fromXml (xml));
+    selectBand (0);
+    return true;
+}
+
 void TitQEditor::refreshEqPresets()
 {
     eqPresetBox.clear (juce::dontSendNotification);
-    auto files = eqPresetDir().findChildFiles (juce::File::findFiles, false, "*.xml");
+    auto files = eqPresetDir().findChildFiles (juce::File::findFiles, false, "*.titq");
     files.sort();
     int id = 1;
     for (const auto& f : files) eqPresetBox.addItem (f.getFileNameWithoutExtension(), id++);
@@ -466,12 +491,8 @@ void TitQEditor::refreshEqPresets()
 
 void TitQEditor::loadEqPreset (const juce::String& name)
 {
-    if (auto xml = juce::XmlDocument::parse (eqPresetDir().getChildFile (name + ".xml")))
-        if (xml->hasTagName (proc.apvts.state.getType()))
-        {
-            proc.apvts.replaceState (juce::ValueTree::fromXml (*xml));
-            selectBand (0);
-        }
+    if (auto xml = juce::XmlDocument::parse (eqPresetDir().getChildFile (name + ".titq")))
+        applyPresetXml (*xml);
 }
 
 void TitQEditor::saveEqPreset (const juce::String& rawName)
@@ -480,8 +501,8 @@ void TitQEditor::saveEqPreset (const juce::String& rawName)
     if (name.isEmpty()) return;
     auto dir = eqPresetDir();
     dir.createDirectory();
-    if (auto xml = proc.apvts.copyState().createXml())
-        xml->writeTo (dir.getChildFile (name + ".xml"));
+    if (auto xml = makePresetXml())
+        xml->writeTo (dir.getChildFile (name + ".titq"));
     refreshEqPresets();
     for (int i = 0; i < eqPresetBox.getNumItems(); ++i)
         if (eqPresetBox.getItemText (i).equalsIgnoreCase (name)) eqPresetBox.setSelectedItemIndex (i, juce::dontSendNotification);
@@ -489,7 +510,7 @@ void TitQEditor::saveEqPreset (const juce::String& rawName)
 
 void TitQEditor::askSaveEqPreset()
 {
-    auto* aw = new juce::AlertWindow ("Save EQ preset", "Preset name:", juce::MessageBoxIconType::NoIcon);
+    auto* aw = new juce::AlertWindow ("Save preset", "Name of the preset:", juce::MessageBoxIconType::NoIcon);
     aw->addTextEditor ("name", eqPresetBox.getText(), "");
     aw->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
     aw->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
@@ -506,14 +527,44 @@ void TitQEditor::askDeleteEqPreset()
     if (eqPresetBox.getSelectedId() <= 0 || name.isEmpty()) return;
     juce::Component::SafePointer<TitQEditor> safe (this);
     juce::AlertWindow::showAsync (juce::MessageBoxOptions().withIconType (juce::MessageBoxIconType::QuestionIcon)
-                                      .withTitle ("Delete preset").withMessage ("Delete EQ preset \"" + name + "\"?")
+                                      .withTitle ("Delete preset").withMessage ("Delete the preset \"" + name + "\"?")
                                       .withButton ("Delete").withButton ("Cancel"),
                                   [safe, name] (int result)
     {
         if (result != 1 || safe == nullptr) return;
-        safe->eqPresetDir().getChildFile (name + ".xml").deleteFile();
+        eqPresetDir().getChildFile (name + ".titq").deleteFile();
         safe->refreshEqPresets();
         safe->eqPresetBox.setSelectedId (0, juce::dontSendNotification);
+    });
+}
+
+// Menu "...": guardar el preset en cualquier sitio (pendrive, nube...) o cargar uno de otro PC
+void TitQEditor::showPresetMenu()
+{
+    juce::PopupMenu m;
+    m.addItem (1, "Save preset to a file...");
+    m.addItem (2, "Load preset from a file...");
+    m.addItem (3, "Open the presets folder");
+    juce::Component::SafePointer<TitQEditor> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (eqMenuBtn), [safe] (int r)
+    {
+        if (safe == nullptr || r == 0) return;
+        if (r == 3) { eqPresetDir().createDirectory(); eqPresetDir().revealToUser(); return; }
+        const bool saving = (r == 1);
+        safe->chooser = std::make_unique<juce::FileChooser> (saving ? "Save preset" : "Load preset", eqPresetDir(), "*.titq");
+        const int flags = saving ? (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting)
+                                 : (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles);
+        safe->chooser->launchAsync (flags, [safe, saving] (const juce::FileChooser& fc)
+        {
+            const auto f = fc.getResult();
+            if (safe == nullptr || f == juce::File()) return;
+            if (saving)
+            {
+                if (auto xml = safe->makePresetXml()) xml->writeTo (f.withFileExtension ("titq"));
+            }
+            else if (auto xml = juce::XmlDocument::parse (f))
+                safe->applyPresetXml (*xml);
+        });
     });
 }
 
@@ -1209,9 +1260,10 @@ void TitQEditor::resized()
     outLabel.setBounds (S (160), S (12), S (36), S (26));
     outSlider.setBounds (S (196), S (12), S (260), S (26));
     settingsBtn.setBounds (S (470), S (12), S (90), S (26));
-    eqPresetBox.setBounds (S (572), S (12), S (170), S (26));
-    eqSaveBtn.setBounds   (S (748), S (12), S (84),  S (26));
-    eqDelBtn.setBounds    (S (838), S (12), S (96),  S (26));
+    eqPresetBox.setBounds (S (572), S (12), S (150), S (26));
+    eqSaveBtn.setBounds   (S (726), S (12), S (62),  S (26));
+    eqDelBtn.setBounds    (S (792), S (12), S (72),  S (26));
+    eqMenuBtn.setBounds   (S (868), S (12), S (40),  S (26));
     dbBox.setBounds (S (950), S (12), S (110), S (26));   // selector de escala de dB: esquina superior derecha
 
     for (int i = 0; i < kNumBands; ++i)

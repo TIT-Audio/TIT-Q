@@ -64,6 +64,9 @@ private:
     void askSaveEqPreset();
     void saveEqPreset (const juce::String& name);
     void askDeleteEqPreset();
+    void showPresetMenu();
+    std::unique_ptr<juce::XmlElement> makePresetXml() const;
+    bool applyPresetXml (juce::XmlElement xml);
 
     // estado de las bandas
     bool isBandUsed (int band) const;      // la banda está creada
@@ -108,7 +111,8 @@ private:
     juce::ComboBox osBox, dbBox;
     juce::TextButton settingsBtn { "Settings" };
     juce::ComboBox eqPresetBox;
-    juce::TextButton eqSaveBtn { "Save" }, eqDelBtn { "Delete" };
+    juce::TextButton eqSaveBtn { "Save" }, eqDelBtn { "Delete" }, eqMenuBtn { "..." };
+    std::unique_ptr<juce::FileChooser> chooser;
     juce::Slider outSlider;
     juce::Label outLabel;
     std::unique_ptr<ComboAtt> osAtt, dbAtt;
