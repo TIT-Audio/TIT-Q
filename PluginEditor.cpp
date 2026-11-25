@@ -417,6 +417,14 @@ void TitQEditor::updateEnabledStates()
     en (knobs[kFreq].s,   used);
     en (knobs[kGain].s,   used && type != BOOBTEC && ! isCut);
     // Q manual solo en las curvas que la usan; AP TIT (Q automática), BIG TIT y TIT SKY (Q fija) quedan bloqueadas; SL TIT va acotada
+    {   // SL TIT: la ruleta de Q recorre exactamente el rango permitido de la consola (tope izquierdo = Q minima, tope derecho = Q maxima)
+        auto& q = knobs[kQ].s;
+        if (type == SLTIT) { q.lo = titq::kSltitQMin; q.hi = titq::kSltitQMax; }
+        else               { q.lo = -1.0; q.hi = -1.0; }
+        if (q.limited() && (q.getValue() < q.lo || q.getValue() > q.hi))
+            q.setValue (juce::jlimit (q.lo, q.hi, q.getValue()), juce::sendNotificationSync);
+        q.repaint();
+    }
     en (knobs[kQ].s,      used && (type == Bell || type == LowShelf || type == HighShelf || type == TiltShelf || type == SLTIT));
     en (knobs[kSlope].s,  used && (type == LowShelf || type == HighShelf || isCut));
     en (knobs[kBoost].s,  used && type == BOOBTEC);
