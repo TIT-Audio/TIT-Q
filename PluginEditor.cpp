@@ -35,7 +35,7 @@ class SettingsPanel : public juce::Component
 public:
     explicit SettingsPanel (TitQProcessor& p) : proc (p)
     {
-        setSize (470, 424);
+        setSize (640, 640);
 
         auto label = [this] (juce::Label& l, const juce::String& t)
         {
@@ -45,11 +45,9 @@ public:
         };
         label (lblType,   "New band: curve type");
         label (lblSlope,  "New band: slope (dB/oct)");
-        label (lblBass,   "");
-        label (lblBassS,  "      slope (dB/oct)");
-        label (lblTreb,   "");
-        label (lblTrebS,  "      slope (dB/oct)");
         label (lblBand,   "Double-click on a band");
+        label (lblWheel,  "Mouse wheel on a band: Q speed");
+        label (lblZones,  "Zones: frequency range + height (dB) of the click -> band created");
 
         addAndMakeVisible (presetBox);
         addAndMakeVisible (defaultBtn); addAndMakeVisible (saveBtn); addAndMakeVisible (deleteBtn); addAndMakeVisible (folderBtn);
@@ -57,31 +55,69 @@ public:
         addAndMakeVisible (nameEd);
 
         newTypeBox.addItemList (titq::typeNames(), 1);
-        bassBox.addItemList (ClickConfig::zoneActions(), 1);
-        trebBox.addItemList (ClickConfig::zoneActions(), 1);
         bandBox.addItemList (ClickConfig::bandClickActions(), 1);
-        for (auto* c : { &newTypeBox, &bassBox, &trebBox, &bandBox }) addAndMakeVisible (*c);
+        for (auto* c : { &newTypeBox, &bandBox }) addAndMakeVisible (*c);
 
-        for (auto* s : { &newSlope, &bassSlope, &trebSlope })
+        for (auto* s : { &newSlope })
         {
             s->setSliderStyle (juce::Slider::LinearHorizontal);
             s->setRange (0.0, 96.0, 1.0);
             s->setTextBoxStyle (juce::Slider::TextBoxRight, false, 50, 20);
             addAndMakeVisible (*s);
         }
+        wheelSpeed.setSliderStyle (juce::Slider::LinearHorizontal);
+        wheelSpeed.setRange (0.2, 4.0, 0.1);
+        wheelSpeed.setTextBoxStyle (juce::Slider::TextBoxRight, false, 50, 20);
+        addAndMakeVisible (wheelSpeed);
+        wheelOn.setButtonText ("Mouse wheel changes the Q of the band under the cursor");
+        addAndMakeVisible (wheelOn);
         gainClick.setButtonText ("New band takes the gain of the click height");
         addAndMakeVisible (gainClick);
+
+        // ---- zonas ----
+        for (int i = 0; i < ClickConfig::kNumZones; ++i)
+        {
+            auto& z = rows[(size_t) i];
+            label (z.name, ClickConfig::zoneName (i));
+            z.action.addItemList (ClickConfig::zoneActions(), 1);
+            z.clicks.addItem ("1 click", 1);
+            z.clicks.addItem ("2 clicks", 2);
+            z.slope.setSliderStyle (juce::Slider::LinearHorizontal);
+            z.slope.setRange (0.0, 96.0, 1.0);
+            z.slope.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, 20);
+            for (auto* c : { &z.action, &z.clicks }) addAndMakeVisible (*c);
+            addAndMakeVisible (z.slope);
+            const char* t[] = { "Hz", "to", "dB", "to" };
+            for (int k = 0; k < 4; ++k) { label (z.lbl[k], t[k]); }
+            for (int k = 0; k < 4; ++k) { z.ed[k].setJustification (juce::Justification::centred); addAndMakeVisible (z.ed[k]); }
+
+            auto& c = proc.clickConfig;
+            z.action.onChange = [this, i, &c] { c.zones[i].action = ClickConfig::zoneActions()[rows[(size_t) i].action.getSelectedItemIndex()]; };
+            z.clicks.onChange = [this, i, &c] { c.zones[i].clicks = rows[(size_t) i].clicks.getSelectedId(); };
+            z.slope.onValueChange = [this, i, &c] { c.zones[i].slope = rows[(size_t) i].slope.getValue(); };
+            auto commit = [this, i, &c]
+            {
+                auto& zz = rows[(size_t) i];
+                auto& d = c.zones[i];
+                const double a = juce::jlimit (10.0, 21000.0, zz.ed[0].getText().getDoubleValue());
+                const double b = juce::jlimit (10.0, 21000.0, zz.ed[1].getText().getDoubleValue());
+                const double e = juce::jlimit (-60.0, 60.0, zz.ed[2].getText().getDoubleValue());
+                const double f = juce::jlimit (-60.0, 60.0, zz.ed[3].getText().getDoubleValue());
+                if (a < b) { d.minHz = a; d.maxHz = b; }
+                if (e < f) { d.minDb = e; d.maxDb = f; }
+                refreshControls();
+            };
+            for (auto& ed : z.ed) { ed.onReturnKey = commit; ed.onFocusLost = commit; }
+        }
 
         // ---- cambios: se aplican al momento sobre la configuración activa ----
         auto& c = proc.clickConfig;
         newTypeBox.onChange = [this, &c] { c.newBandType = titq::typeNames()[newTypeBox.getSelectedItemIndex()]; };
         newSlope.onValueChange  = [this, &c] { c.newBandSlope  = newSlope.getValue(); };
-        bassBox.onChange = [this, &c] { c.bassAction = ClickConfig::zoneActions()[bassBox.getSelectedItemIndex()]; };
-        bassSlope.onValueChange = [this, &c] { c.bassSlope = bassSlope.getValue(); };
-        trebBox.onChange = [this, &c] { c.trebleAction = ClickConfig::zoneActions()[trebBox.getSelectedItemIndex()]; };
-        trebSlope.onValueChange = [this, &c] { c.trebleSlope = trebSlope.getValue(); };
         bandBox.onChange = [this, &c] { c.bandDoubleClick = ClickConfig::bandClickActions()[bandBox.getSelectedItemIndex()]; };
         gainClick.onClick = [this, &c] { c.gainFromClick = gainClick.getToggleState(); };
+        wheelOn.onClick = [this, &c] { c.wheelQ = wheelOn.getToggleState(); };
+        wheelSpeed.onValueChange = [this, &c] { c.wheelQSpeed = wheelSpeed.getValue(); };
 
         // ---- presets ----
         presetBox.onChange = [this]
@@ -149,21 +185,38 @@ public:
 
     void resized() override
     {
-        const int lx = 12, lw = 210, cx = 228, cw = 230;
-        presetBox.setBounds (12, 12, 250, 26);   defaultBtn.setBounds (270, 12, 188, 26);
-        nameEd.setBounds (12, 46, 250, 26);      saveBtn.setBounds (270, 46, 90, 26);   deleteBtn.setBounds (366, 46, 92, 26);
-        folderBtn.setBounds (12, 80, 446, 26);
+        const int lx = 12, lw = 260, cx = 280, cw = 348;
+        presetBox.setBounds (12, 12, 330, 26);   defaultBtn.setBounds (350, 12, 278, 26);
+        nameEd.setBounds (12, 46, 330, 26);      saveBtn.setBounds (350, 46, 130, 26);   deleteBtn.setBounds (486, 46, 142, 26);
+        folderBtn.setBounds (12, 80, 616, 26);
 
         int y = 130;
         auto row = [&] (juce::Label& l, juce::Component& c) { l.setBounds (lx, y, lw, 26); c.setBounds (cx, y, cw, 26); y += 36; };
         row (lblType,  newTypeBox);
         row (lblSlope, newSlope);
-        row (lblBass,  bassBox);
-        row (lblBassS, bassSlope);
-        row (lblTreb,  trebBox);
-        row (lblTrebS, trebSlope);
         row (lblBand,  bandBox);
-        gainClick.setBounds (lx, y, 446, 26);
+        gainClick.setBounds (lx, y, 616, 26); y += 36;
+        wheelOn.setBounds (lx, y, 616, 26); y += 36;
+        row (lblWheel, wheelSpeed);
+
+        lblZones.setBounds (lx, y, 616, 26); y += 32;
+        for (auto& z : rows)
+        {
+            z.name.setBounds (12, y, 140, 24);
+            z.action.setBounds (158, y, 130, 24);
+            z.clicks.setBounds (296, y, 100, 24);
+            z.slope.setBounds (404, y, 224, 24);
+            int x = 158; const int yy = y + 28;
+            z.lbl[0].setBounds (x, yy, 26, 24);  x += 28;
+            z.ed[0].setBounds (x, yy, 64, 24);   x += 68;
+            z.lbl[1].setBounds (x, yy, 22, 24);  x += 24;
+            z.ed[1].setBounds (x, yy, 64, 24);   x += 90;
+            z.lbl[2].setBounds (x, yy, 26, 24);  x += 28;
+            z.ed[2].setBounds (x, yy, 54, 24);   x += 58;
+            z.lbl[3].setBounds (x, yy, 22, 24);  x += 24;
+            z.ed[3].setBounds (x, yy, 54, 24);
+            y += 62;
+        }
     }
 
 private:
@@ -187,27 +240,43 @@ private:
         const auto& c = proc.clickConfig;
         newTypeBox.setSelectedItemIndex (juce::jmax (0, titq::typeNames().indexOf (c.newBandType)), juce::dontSendNotification);
         newSlope.setValue (c.newBandSlope, juce::dontSendNotification);
-        bassBox.setSelectedItemIndex (juce::jmax (0, ClickConfig::zoneActions().indexOf (c.bassAction)), juce::dontSendNotification);
-        bassSlope.setValue (c.bassSlope, juce::dontSendNotification);
-        trebBox.setSelectedItemIndex (juce::jmax (0, ClickConfig::zoneActions().indexOf (c.trebleAction)), juce::dontSendNotification);
-        trebSlope.setValue (c.trebleSlope, juce::dontSendNotification);
         bandBox.setSelectedItemIndex (juce::jmax (0, ClickConfig::bandClickActions().indexOf (c.bandDoubleClick)), juce::dontSendNotification);
         gainClick.setToggleState (c.gainFromClick, juce::dontSendNotification);
-        lblBass.setText ("Bass zone " + juce::String ((int) c.bassMinHz) + "-" + juce::String ((int) c.bassMaxHz) + " Hz: click",
-                         juce::dontSendNotification);
-        lblTreb.setText ("Treble zone " + juce::String ((int) c.trebleMinHz) + "-" + juce::String ((int) c.trebleMaxHz) + " Hz: click",
-                         juce::dontSendNotification);
+        wheelOn.setToggleState (c.wheelQ, juce::dontSendNotification);
+        wheelSpeed.setValue (c.wheelQSpeed, juce::dontSendNotification);
+        for (int i = 0; i < ClickConfig::kNumZones; ++i)
+        {
+            auto& z = rows[(size_t) i];
+            const auto& d = c.zones[i];
+            z.action.setSelectedItemIndex (juce::jmax (0, ClickConfig::zoneActions().indexOf (d.action)), juce::dontSendNotification);
+            z.clicks.setSelectedId (d.clicks == 2 ? 2 : 1, juce::dontSendNotification);
+            z.slope.setValue (d.slope, juce::dontSendNotification);
+            z.ed[0].setText (juce::String (d.minHz, 0), false);
+            z.ed[1].setText (juce::String (d.maxHz, 0), false);
+            z.ed[2].setText (juce::String (d.minDb, 1), false);
+            z.ed[3].setText (juce::String (d.maxDb, 1), false);
+        }
     }
+
+    struct ZoneRow
+    {
+        juce::Label name;
+        juce::ComboBox action, clicks;
+        juce::Slider slope;
+        juce::Label lbl[4];
+        juce::TextEditor ed[4];
+    };
 
     TitQProcessor& proc;
     juce::Array<juce::File> files;
 
-    juce::ComboBox presetBox, newTypeBox, bassBox, trebBox, bandBox;
+    juce::ComboBox presetBox, newTypeBox, bandBox;
     juce::TextButton defaultBtn, saveBtn, deleteBtn, folderBtn;
     juce::TextEditor nameEd;
-    juce::Slider newSlope, bassSlope, trebSlope;
-    juce::ToggleButton gainClick;
-    juce::Label lblType, lblSlope, lblBass, lblBassS, lblTreb, lblTrebS, lblBand;
+    juce::Slider newSlope, wheelSpeed;
+    juce::ToggleButton gainClick, wheelOn;
+    juce::Label lblType, lblSlope, lblBand, lblWheel, lblZones;
+    std::array<ZoneRow, ClickConfig::kNumZones> rows;
 };
 } // namespace
 
@@ -321,6 +390,14 @@ TitQEditor::TitQEditor (TitQProcessor& p) : AudioProcessorEditor (&p), proc (p)
     settingsBtn.onClick = [this] { openSettings(); };
     addAndMakeVisible (settingsBtn);
 
+    // ---- presets del ecualizador (estado completo de las 10 bandas) ----
+    addAndMakeVisible (eqPresetBox); addAndMakeVisible (eqSaveBtn); addAndMakeVisible (eqDelBtn);
+    eqPresetBox.setTextWhenNothingSelected ("EQ presets");
+    eqPresetBox.onChange = [this] { if (eqPresetBox.getSelectedId() > 0) loadEqPreset (eqPresetBox.getText()); };
+    eqSaveBtn.onClick = [this] { askSaveEqPreset(); };
+    eqDelBtn.onClick  = [this] { askDeleteEqPreset(); };
+    refreshEqPresets();
+
     // ---- selector de banda ----
     for (int i = 0; i < kNumBands; ++i)
     {
@@ -371,6 +448,73 @@ TitQEditor::~TitQEditor()
 {
     stopTimer();
     setLookAndFeel (nullptr);
+}
+
+juce::File TitQEditor::eqPresetDir()
+{
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("TIT Q").getChildFile ("EQ Presets");
+}
+
+void TitQEditor::refreshEqPresets()
+{
+    eqPresetBox.clear (juce::dontSendNotification);
+    auto files = eqPresetDir().findChildFiles (juce::File::findFiles, false, "*.xml");
+    files.sort();
+    int id = 1;
+    for (const auto& f : files) eqPresetBox.addItem (f.getFileNameWithoutExtension(), id++);
+}
+
+void TitQEditor::loadEqPreset (const juce::String& name)
+{
+    if (auto xml = juce::XmlDocument::parse (eqPresetDir().getChildFile (name + ".xml")))
+        if (xml->hasTagName (proc.apvts.state.getType()))
+        {
+            proc.apvts.replaceState (juce::ValueTree::fromXml (*xml));
+            selectBand (0);
+        }
+}
+
+void TitQEditor::saveEqPreset (const juce::String& rawName)
+{
+    const auto name = juce::File::createLegalFileName (rawName.trim());
+    if (name.isEmpty()) return;
+    auto dir = eqPresetDir();
+    dir.createDirectory();
+    if (auto xml = proc.apvts.copyState().createXml())
+        xml->writeTo (dir.getChildFile (name + ".xml"));
+    refreshEqPresets();
+    for (int i = 0; i < eqPresetBox.getNumItems(); ++i)
+        if (eqPresetBox.getItemText (i).equalsIgnoreCase (name)) eqPresetBox.setSelectedItemIndex (i, juce::dontSendNotification);
+}
+
+void TitQEditor::askSaveEqPreset()
+{
+    auto* aw = new juce::AlertWindow ("Save EQ preset", "Preset name:", juce::MessageBoxIconType::NoIcon);
+    aw->addTextEditor ("name", eqPresetBox.getText(), "");
+    aw->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    aw->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    juce::Component::SafePointer<TitQEditor> safe (this);
+    aw->enterModalState (true, juce::ModalCallbackFunction::create ([safe, aw] (int result)
+    {
+        if (result == 1 && safe != nullptr) safe->saveEqPreset (aw->getTextEditorContents ("name"));
+    }), true);
+}
+
+void TitQEditor::askDeleteEqPreset()
+{
+    const auto name = eqPresetBox.getText();
+    if (eqPresetBox.getSelectedId() <= 0 || name.isEmpty()) return;
+    juce::Component::SafePointer<TitQEditor> safe (this);
+    juce::AlertWindow::showAsync (juce::MessageBoxOptions().withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                      .withTitle ("Delete preset").withMessage ("Delete EQ preset \"" + name + "\"?")
+                                      .withButton ("Delete").withButton ("Cancel"),
+                                  [safe, name] (int result)
+    {
+        if (result != 1 || safe == nullptr) return;
+        safe->eqPresetDir().getChildFile (name + ".xml").deleteFile();
+        safe->refreshEqPresets();
+        safe->eqPresetBox.setSelectedId (0, juce::dontSendNotification);
+    });
 }
 
 void TitQEditor::openSettings()
@@ -727,27 +871,51 @@ void TitQEditor::mouseDoubleClick (const juce::MouseEvent& e)
     if (juce::Time::getMillisecondCounter() - lastCreateMs < 600) return;
     const auto& cfg = proc.clickConfig;
     const int hit = findNode (e.position);
-    if (hit < 0) return;
+    if (hit < 0)
+    {
+        if (displayArea().contains (e.position))
+        {
+            const int zi = zoneAt (e.position);
+            if (zi >= 0 && cfg.zones[zi].clicks == 2 && createZoneBand (e.position, zi) >= 0)
+                lastCreateMs = juce::Time::getMillisecondCounter();
+        }
+        return;
+    }
     if (cfg.bandDoubleClick == "ToggleOnOff")  toggleParam (pid (hit, "on"));
     else if (cfg.bandDoubleClick == "Delete")  deleteBand (hit);
 }
 
+int TitQEditor::zoneAt (juce::Point<float> pos) const
+{
+    const auto& cfg = proc.clickConfig;
+    const float f = xToFreq (pos.x), db = yToDb (pos.y);
+    for (int i = 0; i < ClickConfig::kNumZones; ++i)
+    {
+        const auto& z = cfg.zones[i];
+        if (z.action != "None" && f >= z.minHz && f <= z.maxHz && db >= z.minDb && db <= z.maxDb) return i;
+    }
+    return -1;
+}
+
 int TitQEditor::createNewBandAt (juce::Point<float> pos)
+{
+    const auto& cfg = proc.clickConfig;
+    const int zi = zoneAt (pos);
+    if (zi >= 0 && cfg.zones[zi].clicks == 2) return -1;      // zona de doble clic: no se crea con un solo clic
+    return createZoneBand (pos, zi);
+}
+
+int TitQEditor::createZoneBand (juce::Point<float> pos, int zi)
 {
     const auto& cfg = proc.clickConfig;
     const float f = xToFreq (pos.x);
     juce::String typeName = cfg.newBandType;
     float slope = (float) cfg.newBandSlope;
 
-    if (cfg.bassAction != "None" && f >= cfg.bassMinHz && f <= cfg.bassMaxHz)             // graves -> corte
+    if (zi >= 0)
     {
-        typeName = ClickConfig::typeForAction (cfg.bassAction);
-        slope = (float) cfg.bassSlope;
-    }
-    else if (cfg.trebleAction != "None" && f >= cfg.trebleMinHz && f <= cfg.trebleMaxHz)  // agudos -> corte
-    {
-        typeName = ClickConfig::typeForAction (cfg.trebleAction);
-        slope = (float) cfg.trebleSlope;
+        typeName = ClickConfig::typeForAction (cfg.zones[zi].action);
+        slope = (float) cfg.zones[zi].slope;
     }
 
     const int ti = typeNames().indexOf (typeName);
@@ -763,7 +931,26 @@ void TitQEditor::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWhe
     {
         const float q = proc.apvts.getRawParameterValue (pid (selected, "scq"))->load();
         setParam (pid (selected, "scq"), q * std::exp (w.deltaY * 1.5f));
+        return;
     }
+
+    // rueda sobre un nodo de banda: cambia su Q
+    const auto& cfg = proc.clickConfig;
+    if (! cfg.wheelQ) return;
+    const int hit = findNode (e.position);
+    if (hit < 0 || ! isBandOn (hit)) return;
+    const int type = (int) std::lround (proc.apvts.getRawParameterValue (pid (hit, "type"))->load());
+    if (! (type == Bell || type == LowShelf || type == HighShelf || type == TiltShelf || type == SLTIT)) return;
+
+    auto* p = dynamic_cast<juce::RangedAudioParameter*> (proc.apvts.getParameter (pid (hit, "q")));
+    if (p == nullptr) return;
+    auto r = p->getNormalisableRange();
+    double lo = r.start, hi = r.end;
+    if (type == SLTIT) { lo = titq::kSltitQMin; hi = titq::kSltitQMax; }
+    const float q = proc.apvts.getRawParameterValue (pid (hit, "q"))->load();
+    const float nq = (float) juce::jlimit (lo, hi, (double) q * std::exp (w.deltaY * 1.5 * cfg.wheelQSpeed));
+    if (hit != selected) selectBand (hit);
+    setParamGesture (pid (hit, "q"), nq);
 }
 
 // ---------- analizador ----------
@@ -1022,6 +1209,9 @@ void TitQEditor::resized()
     outLabel.setBounds (S (160), S (12), S (36), S (26));
     outSlider.setBounds (S (196), S (12), S (260), S (26));
     settingsBtn.setBounds (S (470), S (12), S (90), S (26));
+    eqPresetBox.setBounds (S (572), S (12), S (170), S (26));
+    eqSaveBtn.setBounds   (S (748), S (12), S (84),  S (26));
+    eqDelBtn.setBounds    (S (838), S (12), S (96),  S (26));
     dbBox.setBounds (S (950), S (12), S (110), S (26));   // selector de escala de dB: esquina superior derecha
 
     for (int i = 0; i < kNumBands; ++i)

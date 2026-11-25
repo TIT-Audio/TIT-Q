@@ -58,6 +58,12 @@ private:
     void selectBand (int b);
     void updateEnabledStates();
     void openSettings();
+    static juce::File eqPresetDir();
+    void refreshEqPresets();
+    void loadEqPreset (const juce::String& name);
+    void askSaveEqPreset();
+    void saveEqPreset (const juce::String& name);
+    void askDeleteEqPreset();
 
     // estado de las bandas
     bool isBandUsed (int band) const;      // la banda está creada
@@ -71,6 +77,8 @@ private:
     void setParamGesture (const juce::String& id, float realValue);
     void resetBandParams (int band);
     int  createNewBandAt (juce::Point<float> pos);
+    int  zoneAt (juce::Point<float> pos) const;
+    int  createZoneBand (juce::Point<float> pos, int zone);
     juce::uint32 lastCreateMs = 0;
     int  createBand (float freq, float gainDb, const juce::String& typeName, float slope);
     void deleteBand (int band);
@@ -99,6 +107,8 @@ private:
     // globales
     juce::ComboBox osBox, dbBox;
     juce::TextButton settingsBtn { "Settings" };
+    juce::ComboBox eqPresetBox;
+    juce::TextButton eqSaveBtn { "Save" }, eqDelBtn { "Delete" };
     juce::Slider outSlider;
     juce::Label outLabel;
     std::unique_ptr<ComboAtt> osAtt, dbAtt;
