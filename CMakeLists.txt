@@ -14,7 +14,7 @@ FetchContent_MakeAvailable(JUCE)
 # La imagen de fondo se incrusta en el plugin (BinaryData::background_jpg)
 juce_add_binary_data(TITQAssets SOURCES background.jpg)
 
-# Formatos: VST3 (Windows y macOS) y AU (Logic Pro, solo macOS). Sin AAX.
+# Formatos: VST3 (Windows y macOS) y AU (solo macOS). Sin AAX.
 set(TITQ_FORMATS VST3)
 if(APPLE)
     list(APPEND TITQ_FORMATS AU)
