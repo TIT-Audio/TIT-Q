@@ -35,7 +35,7 @@ Unsigned macOS builds: `xattr -cr "TIT Q.vst3"` (or `.component`).
 `cmake -B build && cmake --build build --config Release`. Needs CMake 3.22+ and a C++17 compiler; JUCE 8 is downloaded automatically. Core tests (no JUCE): `g++ -std=c++17 -O1 tests/eq_test.cpp -o eq_test && ./eq_test`.
 
 ## License
-Free software under the **GNU AGPLv3** (see `LICENSE`), built with JUCE 8. Source: https://github.com/apipe360-ship-it/TIT-Q
+Free software under the **GNU AGPLv3** (see `LICENSE`), built with JUCE 8. Source: https://github.com/TIT-Audio/TIT-Q
 All trademarks belong to their owners; TIT Q is not affiliated with or endorsed by anyone.
 
 ---
