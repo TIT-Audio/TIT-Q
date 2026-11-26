@@ -1,13 +1,20 @@
-# TIT Q v0.4
+# TIT Q v0.5
 
-Ecualizador gratuito de 10 bandas con dinámica por banda, sidechain y curvas de carácter propio. Formatos: **VST3 (Windows y macOS)** y **AU (macOS)**. Sin AAX, sin fase lineal, sin Standalone.
+Ecualizador gratuito de 10 bandas con dinámica por banda, sidechain y curvas de carácter propio. Formatos: **VST3 (Windows y macOS)** y **AU (macOS)**. Sin AAX, sin Standalone.
 
 ## Fase lineal
-- Selector **Phase: Min / Linear** en la barra superior. En *Min* el ecualizador funciona como siempre (con oversampling opcional). En *Linear* las 10 bandas se convierten en un filtro FIR simétrico, sin desfase, y el plugin avisa de su latencia al host.
+- Selector **Phase: Min / Linear / Mixed** en la barra superior. En *Min* el ecualizador funciona como siempre (con oversampling opcional). En *Linear* las 10 bandas se convierten en un filtro FIR simétrico, sin desfase, y el plugin avisa de su latencia al host. En *Mixed* (fase mixta) el filtro tiene la fase mínima del ecualizador por debajo de ~500 Hz y fase lineal por encima: graves sin pre-ringing y agudos sin desfase; la magnitud es idéntica y la latencia, la misma que en *Linear*.
 - **Calidad** (Low / Medium / High / Max): longitud del filtro. A 48 kHz la latencia es de 1280 / 2304 / 4352 / 8448 muestras (a 96 kHz y 192 kHz la longitud se duplica y cuadruplica para mantener la misma resolución en Hz). Más calidad = más precisión en graves y más latencia.
 - Funcionan igual que en fase mínima: todos los tipos de banda y modos de carácter (se conserva su magnitud), pendientes continuas, dinámica por banda (el filtro se recalcula en otro hilo y se cambia con un fundido, sin clics), sidechain, Mid/Side/L/R, solo por banda y la curva dibujada. En *Linear* el oversampling no hace falta: la respuesta se calcula a 4x, sin la deformación del bilineal cerca de Nyquist.
 - Coste: los filtros lineales producen *pre-ringing* en cortes pronunciados y realces graves (es inherente a la fase lineal). En los graves más extremos la precisión depende de la calidad (resolución = frecuencia de muestreo / longitud del filtro).
 - Un render fuera de tiempo real diseña el filtro en el propio hilo de audio, así el resultado no depende de la velocidad del equipo.
+
+## Novedades v0.5
+- **TIT 250** (antes BIG TIT): campana con Q ajustable entre 0.393 (más ancha) y 2.121 (más estrecha), medidas en Plugin Doctor.
+- **TIT SKY**: high shelf de 12 dB/oct cuya frecuencia y Q siguen las curvas medidas al subir los dB (2.6 dB: 11831.67 Hz, Q 0.499; 4.44 dB: Q 0.457; 6.84 dB: 10388.33 Hz; 8.2 dB: 10053.76 Hz; tope 10.14 dB: 9624.37 Hz, Q 0.475). Por defecto arranca en 11831.67 Hz y la frecuencia elegida se desplaza con esas curvas.
+- **BOOBTEC** con pasos fijos de graves, con las frecuencias reales medidas: 25, 45, 89.18 y 136.94 Hz (posiciones 20, 30, 60 y 100 del original).
+- **Fase mixta** (Phase: Mixed): mínima en graves, lineal en agudos.
+- Motor: los coeficientes de la dinámica se interpolan muestra a muestra (antes saltaban cada 32 muestras); campanas y shelves cerca de Nyquist se diseñan contra el prototipo analógico sin necesidad de oversampling (se elige el diseño más fiel); las 10 bandas se encadenan en 64 bits y solo se redondea a 32 bits a la salida.
 
 ## Novedades v0.4
 - TITTEC pasa a llamarse **BOOBTEC**; sus mandos son **BOOB** (antes Boost) y **ATTIT** (antes Atten).
