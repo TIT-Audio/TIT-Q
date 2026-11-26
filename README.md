@@ -2,6 +2,13 @@
 
 Ecualizador gratuito de 10 bandas con dinámica por banda, sidechain y curvas de carácter propio. Formatos: **VST3 (Windows y macOS)** y **AU (macOS)**. Sin AAX, sin fase lineal, sin Standalone.
 
+## Fase lineal
+- Selector **Phase: Min / Linear** en la barra superior. En *Min* el ecualizador funciona como siempre (con oversampling opcional). En *Linear* las 10 bandas se convierten en un filtro FIR simétrico, sin desfase, y el plugin avisa de su latencia al host.
+- **Calidad** (Low / Medium / High / Max): longitud del filtro. A 48 kHz la latencia es de 1280 / 2304 / 4352 / 8448 muestras (a 96 kHz y 192 kHz la longitud se duplica y cuadruplica para mantener la misma resolución en Hz). Más calidad = más precisión en graves y más latencia.
+- Funcionan igual que en fase mínima: todos los tipos de banda y modos de carácter (se conserva su magnitud), pendientes continuas, dinámica por banda (el filtro se recalcula en otro hilo y se cambia con un fundido, sin clics), sidechain, Mid/Side/L/R, solo por banda y la curva dibujada. En *Linear* el oversampling no hace falta: la respuesta se calcula a 4x, sin la deformación del bilineal cerca de Nyquist.
+- Coste: los filtros lineales producen *pre-ringing* en cortes pronunciados y realces graves (es inherente a la fase lineal). En los graves más extremos la precisión depende de la calidad (resolución = frecuencia de muestreo / longitud del filtro).
+- Un render fuera de tiempo real diseña el filtro en el propio hilo de audio, así el resultado no depende de la velocidad del equipo.
+
 ## Novedades v0.4
 - TITTEC pasa a llamarse **BOOBTEC**; sus mandos son **BOOB** (antes Boost) y **ATTIT** (antes Atten).
 - **TIT SKY** actualizado: high shelf de 12 dB/oct con Q 0.475; al elegirlo, la frecuencia arranca en 9107.48 Hz y se puede mover.

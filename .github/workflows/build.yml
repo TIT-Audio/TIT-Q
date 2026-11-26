@@ -18,6 +18,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: g++ -std=c++17 -O1 -Wall tests/eq_test.cpp -o eq_test
       - run: ./eq_test
+      - run: g++ -std=c++17 -O2 -Wall tests/linphase_test.cpp -o linphase_test
+      - run: ./linphase_test
 
   build:
     name: build (${{ matrix.id }})
