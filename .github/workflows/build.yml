@@ -143,10 +143,11 @@ jobs:
         with:
           name: TITQ-all
           path: TITQ/
-      - name: Publish release (solo con tag, p. ej. v0.1.0)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish release (con un tag v* o con [release] en el mensaje del commit)
+        if: startsWith(github.ref, 'refs/tags/v') || contains(github.event.head_commit.message, '[release]')
         uses: softprops/action-gh-release@v2
         with:
-          name: TIT Q ${{ github.ref_name }}
+          name: TIT Q v0.5.0
+          tag_name: v0.5.0
           body_path: RELEASE_NOTES.md
           files: TITQ/*.zip
