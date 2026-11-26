@@ -2,6 +2,8 @@
 
 **Free 10-band equaliser (VST3 for Windows and macOS, AU for macOS)** with per-band dynamics, sidechain, character bands and **minimum, linear or mixed phase**. No registration, no ads, no limits.
 
+![TIT Q running in a DAW with the live spectrum](docs/tit-q.jpg)
+
 ## Features
 - 10 bands: bell, low/high shelf, low/high cut (continuous slopes from 6 dB/oct up), tilt shelf, and character bands: **SLTIT, TIT 250, AP TIT, TIT SKY, BOOBTEC**. The character bands follow curves measured on reference equalisers (frequency, Q and gain interaction).
 - **Dynamic bands**: each band can compress or expand by level, with its own detector, attack and release, and an internal or external sidechain.
